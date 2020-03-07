@@ -1,102 +1,195 @@
 class Sudoku {
   constructor() {
+    // Initialize the "game" property of the
+    // class instance to a new empty game.
     this.game = this.emptyGame();
+    // Populate the "game" property with a
+    // randomly generated game.
     this.generateGame();
+    // Construct the DOM elements required to
+    // play the game.
     this.buildUI();
   }
 
   emptyGame() {
-    const game = [];
-
-    for (let c = 0; c < 81; c++) {
-      const y1 = Math.floor(c / 27);
-      const y2 = Math.floor(c / 9);
-      const y3 = Math.floor(c / 3);
-      const y4 = y2 - y1 * 3;
-      const y5 = y3 - y2 * 3;
-      const y6 = c - y3 * 3;
-
-      game.push({
-        boxRow: y1,
-        boxCol: y4,
-        cellRow: y5,
-        cellCol: y6,
+    // Create the root of the game's data structure.
+    let empty = [];
+    for (let i = 0; i < 9 * 9; i++) {
+      // Push 81 elements into "empty"
+      empty.push({
+        idx: i,
         val: undefined
       });
     }
-
-    return game;
+    return empty;
   }
 
-  intersectGame(game1, game2) {
-    return game1.filter((el, idx) => game2[idx].val === el.val);
+  getEmptyCells() {
+    // Conditionally return elements that are empty (undefined).
+    return this.emptyGame().filter((el, idx) => this.game[idx].val === el.val);
   }
 
   generateGame() {
-    for (let n = 1; n < 10; n++) {
-      let emptyCells = this.intersectGame(this.game, this.emptyGame());
-      let changes = [];
-      for (let k = 1; k < 10; k++) {
-        if (emptyCells.length > 0) {
-          const idx = Math.floor(Math.random() * emptyCells.length);
+    for (let n = 0; n < 9; n++) {
+      // For each value "n", we must create a snapshot of the
+      // remaining available cells that are empty (undefined).
+      let cells = this.getEmptyCells();
+      for (let k = 0; k < 9; k++) {
+        // We must iterate "k" times to store the required number of
+        // occurrences of the value "n + 1" within the game board.
+        let row = cells.filter(el => {
+          // Filter the cells whose boxRow and cellRow match those
+          // described by the iteration "k" and the "idx" property
+          // of element "el".
+          let boxRow = Math.floor(el.idx / 27);
+          let y2 = Math.floor(el.idx / 9);
+          let y3 = Math.floor(el.idx / 3);
+          let cellRow = y3 - y2 * 3;
+          if (
+            boxRow === Math.floor(k / 3) &&
+            cellRow === k - Math.floor(k / 3) * 3
+          ) {
+            // Return any element within "cells" that resides within
+            // the targeted row.
+            return true;
+          }
+          return false;
+        });
+        if (row.length > 0) {
+          // Randomly select a cell within the row.
+          let c = Math.floor(Math.random() * row.length);
+          // Point to the in-game "idx" we have randomly selected.
+          let gameIdx = row[c].idx;
+          // Parse coordinates for the position "gameIdx".
+          let gameBR = Math.floor(gameIdx / 27);
+          let gameY2 = Math.floor(gameIdx / 9);
+          let gameY3 = Math.floor(gameIdx / 3);
+          let gameBC = gameY2 - gameBR * 3;
+          let gameCC = gameIdx - gameY3 * 3;
 
-          const br = emptyCells[idx].boxRow;
-          const bc = emptyCells[idx].boxCol;
-          const cr = emptyCells[idx].cellRow;
-          const cc = emptyCells[idx].cellCol;
+          /** NOTE:
+           * - Logically, if we look for aligned columnar entries
+           *   ahead of our current position and don't find any,
+           *   they cannot contain "n + 1" because of the top down
+           *   population.
+           *
+           * - Also logically, if we are lower than box row 0 during
+           *   this search, any filled columns containing "n + 1" are
+           *   occluded by the algorithm and can be safely ignored.
+           *
+           * - This allows us to just use "cells" to filter out
+           *   these values, looking for a given box number.
+           */
 
-          for (let g = 0; g < this.game.length; g++) {
-            if (this.game[g].val === undefined) {
-              if (
-                this.game[g].boxRow === br &&
-                this.game[g].boxCol === bc &&
-                this.game[g].cellRow === cr &&
-                this.game[g].cellCol === cc
-              ) {
-                this.game[g].val = n;
+          if (gameBR < 2) {
+            let boxCells = row.filter(el => {
+              let bc = Math.floor(el.idx / 9);
+              let br = Math.floor(el.idx / 27);
+              if (bc - br * 3 === gameBC) {
+                return true;
+              }
+              return false;
+            });
+            console.log('1. BOX CELLS:');
+            boxCells.forEach(el => {
+              console.log(el.idx);
+            });
+            let indices = [];
+            for (let chk = 0; chk < boxCells.length; chk++) {
+              // Go through each column in this box in this row.
+              let chkCC =
+                boxCells[chk].idx - Math.floor(boxCells[chk].idx / 3) * 3;
+              let slotsRemaining = cells.filter(el => {
+                let br = Math.floor(el.idx / 27);
+                let bc = Math.floor(el.idx / 9);
+                let cc = el.idx - Math.floor(el.idx / 3) * 3;
+                if (
+                  br === gameBR + 1 &&
+                  bc === gameBC &&
+                  cc === chkCC &&
+                  el.val === undefined
+                ) {
+                  return true;
+                }
+                return false;
+              });
+              if (slotsRemaining.length === 0) {
+                indices.push(boxCells[chk].idx);
+                console.log('2. SLOTS REMAINING:');
+                slotsRemaining.forEach(el => {
+                  console.log(el.idx);
+                });
               }
             }
+            if (indices.length > 0) {
+              console.log('3. INDICES:');
+              indices.forEach(el => {
+                console.log(el);
+              });
+              if (indices.length === 1) {
+                gameIdx = indices[0];
+              } else {
+                let rand = Math.floor(Math.random() * indices.length);
+                gameIdx = indices[rand];
+              }
+            }
+            console.log('4. gameIdx:');
+            console.log(gameIdx);
+            console.log('5. GAME:');
+            this.printGame();
           }
-
-          const before = emptyCells.length;
-
-          // for (let d = emptyCells.length - 1; d > -1; d--) {
-          //   if (emptyCells[d].boxRow === br && emptyCells[d].boxCol === bc) {
-          //     emptyCells.splice(d, 1);
-          //     continue;
-          //   }
-
-          //   if (emptyCells[d].boxRow === br && emptyCells[d].cellRow === cr) {
-          //     emptyCells.splice(d, 1);
-          //     continue;
-          //   }
-
-          //   if (emptyCells[d].boxCol === bc && emptyCells[d].cellCol === cc) {
-          //     emptyCells.splice(d, 1);
-          //     continue;
-          //   }
-          // }
-
-          emptyCells = emptyCells.filter(el => {
-            if (el.boxRow == br && el.boxCol == bc) {
-              return false;
+          // Otherwise...
+          // Place "n + 1" at the correct address.
+          this.game[gameIdx].val = n + 1;
+          cells = cells.filter(el => {
+            // Filter the cells that do not reside within the box where
+            // "n + 1" was placed, or within the column that aligns with the
+            // populated cell.
+            let boxRow = Math.floor(el.idx / 27);
+            let y2 = Math.floor(el.idx / 9);
+            let y3 = Math.floor(el.idx / 3);
+            let boxCol = y2 - boxRow * 3;
+            let cellCol = el.idx - y3 * 3;
+            if (
+              !(boxRow === Math.floor(k / 3) && boxCol === gameBC) &&
+              !(boxCol === gameBC && cellCol === gameCC)
+            ) {
+              return true;
             }
-            if (el.boxRow == br && el.cellRow == cr) {
-              return false;
-            }
-            if (el.boxCol == bc && el.cellCol == cc) {
-              return false;
-            }
-            return true;
+            return false;
           });
-
-          const after = emptyCells.length;
-          changes.push(before - after);
         }
       }
-      console.log(`[${n}] emptyCells change sequence: ${changes.join(', ')}`);
     }
-    console.log(this.game);
+    //this.printGame();
+  }
+
+  printGame() {
+    let output = [];
+    let newLine = [];
+
+    for (let x = 0; x < 9 * 9; x++) {
+      let boxRow = Math.floor(x / 27);
+      let y2 = Math.floor(x / 9);
+      let y3 = Math.floor(x / 3);
+      let boxCol = y2 - boxRow * 3;
+      let cellRow = y3 - y2 * 3;
+      let cellCol = x - y3 * 3;
+      newLine.push(
+        String(
+          +this.game[cellCol + cellRow * 9 + boxCol * 3 + boxRow * 27].val
+        ).substring(0, 1)
+      );
+      if (newLine.length === 3 || newLine.length === 7) {
+        newLine.push('|');
+      } else if (newLine.length === 11) {
+        output.push(newLine.join(' '));
+        newLine = [];
+      } else if (output.length === 3 || output.length === 7) {
+        output.push('------+-------+------');
+      }
+    }
+    console.log(output.join('\n'));
   }
 
   buildUI() {
